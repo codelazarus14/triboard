@@ -2,7 +2,7 @@ from vpython import *
 
 ROWS = 8
 PLAYER_SIZE = 0.4
-PLAYER_COLORS = [color.red, color.purple]
+PLAYER_COLORS = [color.red, color.magenta]
 BOARD_COLOR = color.blue
 SPACE_COLOR = color.green
 
@@ -119,8 +119,9 @@ def click_piece(piece, piece_space):
     print(m_pos)
     # matches player? we're good
     if m_pos == piece_space:
+        light_purple = vec(0.6, 0.4, 0.8)
         cyl = cylinders[piece_space[0]][piece_space[1]]
-        cyl.color = color.purple
+        cyl.color = light_purple
         return adj_spaces(piece_space[0], piece_space[1])
     # else, wait for next attempt
     print(f"Error selecting piece {piece}")
@@ -191,6 +192,8 @@ def player_turn(p, p_space):
     # wait for player to pick starting piece
     piece_selected = False
     print(f"player {p} space = {p_space}")
+    cyl = cylinders[p_space[0]][p_space[1]]
+    cyl.color = color.purple
     while not piece_selected:
         scene.pause('click the player\'s space')
         adj = click_piece(p, p_space)
