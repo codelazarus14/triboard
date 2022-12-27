@@ -2,7 +2,7 @@ from vpython import *
 
 ROWS = 8
 PLAYER_SIZE = 0.4
-PLAYER_COLOR = color.red
+PLAYER_COLORS = [color.red, color.purple]
 BOARD_COLOR = color.blue
 SPACE_COLOR = color.green
 
@@ -73,10 +73,14 @@ def make_board():
 
 # create board
 make_board()
-# place player
+# place players
 p1_space = (0, 0)
 p1 = arrow(pos=spaces[p1_space[0]][p1_space[1]], axis=vec(0, PLAYER_SIZE, 0),
-           color=PLAYER_COLOR, make_trail=True, trail_radius=PLAYER_SIZE / 20,
+           color=PLAYER_COLORS[0], make_trail=True, trail_radius=PLAYER_SIZE / 20,
+           retain=5, pickable=False)
+p2_space = (0, 14)
+p2 = arrow(pos=spaces[p2_space[0]][p2_space[1]], axis=vec(0, PLAYER_SIZE, 0),
+           color=PLAYER_COLORS[1], make_trail=True, trail_radius=PLAYER_SIZE / 20,
            retain=5, pickable=False)
 
 # -- Input/Mouse Events --
@@ -216,4 +220,5 @@ while True:
     # run player moves forever for now
     scene.caption = f"Turn {t_count}"
     p1_space = player_turn(p1, p1_space)
+    p2_space = player_turn(p2, p2_space)
     t_count += 1
