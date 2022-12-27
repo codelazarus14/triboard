@@ -7,6 +7,9 @@ BOARD_COLOR = color.blue
 SPACE_COLOR = color.green
 
 
+# TODO: implement multiple players, occupied spaces, queen-eye
+
+
 # -- Math Helpers --
 
 def tri_height(length):
@@ -71,10 +74,10 @@ def make_board():
 # create board
 make_board()
 # place player
-player_space = (0, 0)
-player = arrow(pos=spaces[player_space[0]][player_space[1]], axis=vec(0, PLAYER_SIZE, 0),
-               color=PLAYER_COLOR, make_trail=True, trail_radius=PLAYER_SIZE / 20,
-               retain=5, pickable=False)
+p1_space = (0, 0)
+p1 = arrow(pos=spaces[p1_space[0]][p1_space[1]], axis=vec(0, PLAYER_SIZE, 0),
+           color=PLAYER_COLOR, make_trail=True, trail_radius=PLAYER_SIZE / 20,
+           retain=5, pickable=False)
 
 # -- Input/Mouse Events --
 
@@ -94,12 +97,12 @@ def clicked_to_space(clicked):
 
 
 # map mouse position to clicked space
-def mouse_to_space():
+def mouse_to_space(piece, piece_space):
     obj = scene.mouse.pick
     # only allow cylinders to be selected
     if obj is not None and isinstance(obj, cylinder):
-        if obj.pos.x == player.pos.x and obj.pos.y == player.pos.y:
-            return player_space
+        if obj.pos.x == piece.pos.x and obj.pos.y == piece.pos.y:
+            return piece_space
         else:
             return clicked_to_space(obj.pos)
     else:
@@ -107,38 +110,37 @@ def mouse_to_space():
 
 
 # top-level mouse event handler for selecting pieces
-def click_piece():
-    m_pos = mouse_to_space()
+def click_piece(piece, piece_space):
+    m_pos = mouse_to_space(piece, piece_space)
     print(m_pos)
     # matches player? we're good
-    if m_pos == player_space:
-        cyl = cylinders[player_space[0]][player_space[1]]
+    if m_pos == piece_space:
+        cyl = cylinders[piece_space[0]][piece_space[1]]
         cyl.color = color.purple
-        return adj_spaces(player_space[0], player_space[1])
+        return adj_spaces(piece_space[0], piece_space[1])
     # else, wait for next attempt
-    print("Error selecting player")
+    print(f"Error selecting piece {piece}")
     return None
 
 
 # top-level mouse event handler for moving pieces
-def click_space():
-    m_pos = mouse_to_space()
+def click_space(piece, piece_space):
+    m_pos = mouse_to_space(piece, piece_space)
     # we clicked something and it's not a player?
-    if m_pos is not None and m_pos != player_space:
+    if m_pos is not None and m_pos != piece_space:
         # check highlighted spaces for match
         for h in highlighted_spaces:
             if h[1] == m_pos:
                 # reset colors
-                cylinders[player_space[0]][player_space[1]].color = color.green
+                cylinders[piece_space[0]][piece_space[1]].color = color.green
                 for c in highlighted_spaces:
                     c[0].color = color.green
                 highlighted_spaces.clear()
 
-                move_to_space(player, m_pos)
-                return m_pos
+                return move_to_space(piece, piece_space, m_pos)
 
     # not one of our highlighted spaces
-    print("Error moving player")
+    print(f"Error moving piece {piece}")
     return None
 
 
@@ -172,25 +174,22 @@ def adj_spaces(x, y):
     return adj
 
 
-def move_to_space(piece, dest):
-    global player_space
-
-    v_diff = spaces[dest[0]][dest[1]] - spaces[player_space[0]][player_space[1]]
+def move_to_space(piece, piece_space, dest):
+    v_diff = spaces[dest[0]][dest[1]] - spaces[piece_space[0]][piece_space[1]]
     # move and rotate player
-    player_space = dest
     piece.pos = spaces[dest[0]][dest[1]]
     piece.axis = norm(v_diff) * PLAYER_SIZE
-    return
+    return dest
 
 
-def player_turn():
+def player_turn(p, p_space):
     adj = None
     # wait for player to pick starting piece
     piece_selected = False
-    print(f"player space = {player_space}")
+    print(f"player {p} space = {p_space}")
     while not piece_selected:
         scene.pause('click the player\'s space')
-        adj = click_piece()
+        adj = click_piece(p, p_space)
         if adj is not None:
             piece_selected = True
 
@@ -204,16 +203,17 @@ def player_turn():
     space_selected = False
     while not space_selected:
         scene.pause('click the dest space')
-        move = click_space()
+        move = click_space(p, p_space)
         if move is not None:
+            p_space = move
             space_selected = True
     print("turn over")
-    return
+    return p_space
 
 
 t_count = 0
 while True:
     # run player moves forever for now
     scene.caption = f"Turn {t_count}"
-    player_turn()
+    p1_space = player_turn(p1, p1_space)
     t_count += 1
