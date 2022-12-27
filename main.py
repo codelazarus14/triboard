@@ -7,7 +7,7 @@ BOARD_COLOR = color.blue
 SPACE_COLOR = color.green
 
 
-# TODO: implement multiple players, occupied spaces, queen-eye
+# TODO: implement queen-eye
 
 
 # -- Math Helpers --
@@ -32,6 +32,8 @@ h1 = tri_height(1)
 # map [x][y] to board pos
 # in C# should be a dict of tuples to vectors - glowscript won't let me
 spaces: list[list[vector]] = [[None for i in range(ROWS * 2)] for j in range(ROWS)]
+# add our players to this to keep track of them
+occupied_spaces = []
 
 # another glowscript limitation - mirrored array of cylinder references
 cylinders: list[list[cylinder]] = [[None for h in range(ROWS * 2)] for k in range(ROWS)]
@@ -78,10 +80,14 @@ p1_space = (0, 0)
 p1 = arrow(pos=spaces[p1_space[0]][p1_space[1]], axis=vec(0, PLAYER_SIZE, 0),
            color=PLAYER_COLORS[0], make_trail=True, trail_radius=PLAYER_SIZE / 20,
            retain=5, pickable=False)
+occupied_spaces.append(p1_space)
+
 p2_space = (0, 14)
 p2 = arrow(pos=spaces[p2_space[0]][p2_space[1]], axis=vec(0, PLAYER_SIZE, 0),
            color=PLAYER_COLORS[1], make_trail=True, trail_radius=PLAYER_SIZE / 20,
            retain=5, pickable=False)
+occupied_spaces.append(p2_space)
+
 
 # -- Input/Mouse Events --
 
@@ -174,7 +180,8 @@ def adj_spaces(x, y):
     elif x < ROWS - 1:
         adj.append((x + 1, y))
 
-    # (later) blocked by other pieces
+    # filter out occupied
+    adj = [pos for pos in adj if pos not in occupied_spaces]
     print(f"adj: {adj}")
     return adj
 
@@ -200,7 +207,7 @@ def player_turn(p, p_space):
         if adj is not None:
             piece_selected = True
 
-    # highlight adjacents
+    # highlight adjacent
     for c_pos in adj:
         c: cylinder = cylinders[c_pos[0]][c_pos[1]]
         c.color = color.yellow
@@ -222,6 +229,6 @@ t_count = 0
 while True:
     # run player moves forever for now
     scene.caption = f"Turn {t_count}"
-    p1_space = player_turn(p1, p1_space)
-    p2_space = player_turn(p2, p2_space)
+    occupied_spaces[0] = player_turn(p1, occupied_spaces[0])
+    occupied_spaces[1] = player_turn(p2, occupied_spaces[1])
     t_count += 1
