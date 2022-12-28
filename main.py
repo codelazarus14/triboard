@@ -2,12 +2,9 @@ from vpython import *
 
 ROWS = 8
 PLAYER_SIZE = 0.4
-PLAYER_COLORS = [color.red, color.magenta]
+PLAYER_COLORS = [color.red, color.magenta, color.orange]
 BOARD_COLOR = color.blue
 SPACE_COLOR = color.green
-
-
-# TODO: implement queen-eye
 
 
 # -- Math Helpers --
@@ -21,8 +18,8 @@ def radians(deg):
 
 
 # small camera fixes
-scene.width = 600
-scene.height = 600
+scene.width = 700
+scene.height = 700
 scene.camera.pos = vec(0, ROWS - tri_height(ROWS / 2), -30)
 scene.fov = pi / 15
 
@@ -32,11 +29,13 @@ h1 = tri_height(1)
 # map [x][y] to board pos
 # in C# should be a dict of tuples to vectors - glowscript won't let me
 spaces: list[list[vector]] = [[None for i in range(ROWS * 2)] for j in range(ROWS)]
-# add our players to this to keep track of them
-occupied_spaces = []
-
 # another glowscript limitation - mirrored array of cylinder references
 cylinders: list[list[cylinder]] = [[None for h in range(ROWS * 2)] for k in range(ROWS)]
+# add our players to this to keep track of them
+occupied_spaces = []
+# spaces being targeted by the queen every turn
+qb_spaces = []
+qb_lines = []
 
 
 def make_board():
@@ -88,6 +87,11 @@ p2 = arrow(pos=spaces[p2_space[0]][p2_space[1]], axis=vec(0, PLAYER_SIZE, 0),
            retain=5, pickable=False)
 occupied_spaces.append(p2_space)
 
+queen_space = (4, 6)
+queen = box(pos=spaces[queen_space[0]][queen_space[1]], axis=vec(0, 0, PLAYER_SIZE),
+            height=PLAYER_SIZE / 3, width=PLAYER_SIZE / 3, up=vec(1, 1, 0), color=PLAYER_COLORS[2],
+            make_trail=True, trail_radius=PLAYER_SIZE / 20, retain=5, pickable=False)
+occupied_spaces.append(queen_space)
 
 # -- Input/Mouse Events --
 
@@ -163,22 +167,30 @@ def is_white(x, y):
     return (x + y) % 2 == 0
 
 
+# helper for checking board boundaries
+def check_bounds(x, y):
+    if 0 <= x < ROWS and x <= y <= 2 * ROWS - (x + 2):
+        return x, y
+    return None
+
+
 def adj_spaces(x, y):
     adj = []
     # add left space
-    # ignore if on left side
-    if y > x:
-        adj.append((x, y - 1))
+    left = check_bounds(x, y - 1)
+    if left is not None:
+        adj.append(left)
     # add right space
-    # ignore if on right side
-    if y < 2 * ROWS - (x + 2):
-        adj.append((x, y + 1))
-    # add up/down space
+    right = check_bounds(x, y + 1)
+    if right is not None:
+        adj.append(right)
+    # add up/down space depending on B/W
     if is_white(x, y):
-        if x > 0:
-            adj.append((x - 1, y))
-    elif x < ROWS - 1:
-        adj.append((x + 1, y))
+        up_down = check_bounds(x - 1, y)
+    else:
+        up_down = check_bounds(x + 1, y)
+    if up_down is not None:
+        adj.append(up_down)
 
     # filter out occupied
     adj = [pos for pos in adj if pos not in occupied_spaces]
@@ -186,11 +198,65 @@ def adj_spaces(x, y):
     return adj
 
 
+def update_queen_beam(piece_space):
+    qb_new_spaces = []
+    # shorter var names
+    x, y = piece_space[0], piece_space[1]
+    white = is_white(x, y)
+
+    # find all spaces within LOS (points of center triangle)
+    for i in range(1, ROWS):
+        if white:
+            # check for new spaces in 3 directions from center
+            new_spaces = [
+                # above
+                check_bounds(x + i, y),
+                # lower R diagonal
+                check_bounds(x - i, y + 3 * i - 1),
+                check_bounds(x - i, y + 3 * i),
+                # lower L diagonal
+                check_bounds(x - i, y - 3 * i + 1),
+                check_bounds(x - i, y - 3 * i)
+            ]
+            # remove out-of-bounds spaces
+            new_spaces = [n for n in new_spaces if n is not None]
+            qb_new_spaces += new_spaces
+        else:
+            new_spaces = [
+                # below
+                check_bounds(x - i, y),
+                # upper R diagonal
+                check_bounds(x + i, y + 3 * i - 1),
+                check_bounds(x + i, y + 3 * i),
+                # upper L diagonal
+                check_bounds(x + i, y - 3 * i + 1),
+                check_bounds(x + i, y - 3 * i)
+            ]
+            new_spaces = [n for n in new_spaces if n is not None]
+            qb_new_spaces += new_spaces
+
+    # remove old lines/spaces
+    for j in range(len(qb_spaces)):
+        qb_lines[j].visible = False
+    qb_spaces.clear()
+    qb_lines.clear()
+    # draw new lines
+    for q in qb_new_spaces:
+        print(f"attackable position at: {q}")
+        qb_spaces.append(q)
+        # this does generate lines on top of each other
+        # - ideally should store the farthest pos in a variable
+        qb_lines.append(curve(spaces[x][y], spaces[q[0]][q[1]]))
+    return
+
+
 def move_to_space(piece, piece_space, dest):
     v_diff = spaces[dest[0]][dest[1]] - spaces[piece_space[0]][piece_space[1]]
     # move and rotate player
     piece.pos = spaces[dest[0]][dest[1]]
-    piece.axis = norm(v_diff) * PLAYER_SIZE
+    # queen's piece should keep facing up
+    if isinstance(piece, arrow):
+        piece.axis = norm(v_diff) * PLAYER_SIZE
     return dest
 
 
@@ -229,6 +295,8 @@ t_count = 0
 while True:
     # run player moves forever for now
     scene.caption = f"Turn {t_count}"
+    update_queen_beam(occupied_spaces[2])
     occupied_spaces[0] = player_turn(p1, occupied_spaces[0])
     occupied_spaces[1] = player_turn(p2, occupied_spaces[1])
+    occupied_spaces[2] = player_turn(queen, occupied_spaces[2])
     t_count += 1
