@@ -32,6 +32,7 @@ spaces: list[list[vector]] = [[None for i in range(ROWS * 2)] for j in range(ROW
 # another glowscript limitation - mirrored array of cylinder references
 cylinders: list[list[cylinder]] = [[None for h in range(ROWS * 2)] for k in range(ROWS)]
 # add our players to this to keep track of them
+# stored as vpython obj, coord position
 players = []
 # spaces being targeted by the queen every turn
 qb_spaces = []
@@ -195,11 +196,21 @@ def adj_spaces(x, y):
     # filter out occupied
     for p in players:
         for pos in adj:
-            if pos == p[1]:
+            if pos == p[1] and p[2]:
                 adj.remove(pos)
     # adj = [pos for pos in adj if pos not in players]
     print(f"adj: {adj}")
     return adj
+
+
+def move_to_space(piece, piece_space, dst):
+    v_diff = spaces[dst[0]][dst[1]] - spaces[piece_space[0]][piece_space[1]]
+    # move and rotate player
+    piece.pos = spaces[dst[0]][dst[1]]
+    # queen's piece should keep facing up
+    if isinstance(piece, arrow):
+        piece.axis = norm(v_diff) * PLAYER_SIZE
+    return dst
 
 
 def update_queen_beam(piece_space):
@@ -255,25 +266,14 @@ def update_queen_beam(piece_space):
 
 
 def check_queen_beam():
+    for p in players:
+        if p[1] in qb_spaces and p[0].visible:
+            p[0].visible = False
+            print(f"{p[0]} hit by beam at {p[1]}!")
     return
 
 
-def move_to_space(piece, piece_space, dest):
-    v_diff = spaces[dest[0]][dest[1]] - spaces[piece_space[0]][piece_space[1]]
-    # move and rotate player
-    piece.pos = spaces[dest[0]][dest[1]]
-    # queen's piece should keep facing up
-    if isinstance(piece, arrow):
-        piece.axis = norm(v_diff) * PLAYER_SIZE
-    check_queen_beam()
-    return dest
-
-
 def player_turn(p, p_space):
-    # TODO: add beam detecting func and call it after player/queen moves
-    #  could be player agnostic - checks if any positions overlap between
-    #  occupied_spaces and qb_spaces and removes the pieces at those positions
-    #  maybe set flags that map to parts of occupied_spaces to stop turn-taking?
     adj = None
     # wait for player to pick starting piece
     piece_selected = False
@@ -300,16 +300,34 @@ def player_turn(p, p_space):
         if move is not None:
             p_space = move
             space_selected = True
+
+    # queen updates beam
+    if isinstance(p, box):
+        update_queen_beam(p_space)
+    # every piece checks to see if beam made contact
     print("turn over")
     return p, p_space
 
 
 t_count = 0
-while True:
-    # run player moves forever for now
-    scene.caption = f"Turn {t_count}"
-    update_queen_beam(players[2][1])
-    players[0] = player_turn(players[0][0], players[0][1])
-    players[1] = player_turn(players[1][0], players[1][1])
-    players[2] = player_turn(players[2][0], players[2][1])
+playing = True
+# activate on start
+update_queen_beam(players[2][1])
+while playing:
     t_count += 1
+    scene.caption = f"Turn {t_count}"
+    for i in range(len(players)):
+        plyr = players[i]
+        # ignore if invisible - removed from board
+        if plyr[0].visible:
+            players[i] = player_turn(plyr[0], plyr[1])
+            check_queen_beam()
+            # check if <2 players remain
+            p_count = 0
+            for pl in players:
+                if pl[0].visible:
+                    p_count += 1
+            if p_count < 2:
+                scene.caption = "Game over!"
+                playing = False
+                break
