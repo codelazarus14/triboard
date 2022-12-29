@@ -32,7 +32,7 @@ spaces: list[list[vector]] = [[None for i in range(ROWS * 2)] for j in range(ROW
 # another glowscript limitation - mirrored array of cylinder references
 cylinders: list[list[cylinder]] = [[None for h in range(ROWS * 2)] for k in range(ROWS)]
 # add our players to this to keep track of them
-occupied_spaces = []
+players = []
 # spaces being targeted by the queen every turn
 qb_spaces = []
 qb_lines = []
@@ -79,19 +79,19 @@ p1_space = (0, 0)
 p1 = arrow(pos=spaces[p1_space[0]][p1_space[1]], axis=vec(0, PLAYER_SIZE, 0),
            color=PLAYER_COLORS[0], make_trail=True, trail_radius=PLAYER_SIZE / 20,
            retain=5, pickable=False)
-occupied_spaces.append(p1_space)
+players.append((p1, p1_space))
 
 p2_space = (0, 14)
 p2 = arrow(pos=spaces[p2_space[0]][p2_space[1]], axis=vec(0, PLAYER_SIZE, 0),
            color=PLAYER_COLORS[1], make_trail=True, trail_radius=PLAYER_SIZE / 20,
            retain=5, pickable=False)
-occupied_spaces.append(p2_space)
+players.append((p2, p2_space))
 
 queen_space = (4, 6)
 queen = box(pos=spaces[queen_space[0]][queen_space[1]], axis=vec(0, 0, PLAYER_SIZE),
             height=PLAYER_SIZE / 3, width=PLAYER_SIZE / 3, up=vec(1, 1, 0), color=PLAYER_COLORS[2],
             make_trail=True, trail_radius=PLAYER_SIZE / 20, retain=5, pickable=False)
-occupied_spaces.append(queen_space)
+players.append((queen, queen_space))
 
 # -- Input/Mouse Events --
 
@@ -193,7 +193,11 @@ def adj_spaces(x, y):
         adj.append(up_down)
 
     # filter out occupied
-    adj = [pos for pos in adj if pos not in occupied_spaces]
+    for p in players:
+        for pos in adj:
+            if pos == p[1]:
+                adj.remove(pos)
+    # adj = [pos for pos in adj if pos not in players]
     print(f"adj: {adj}")
     return adj
 
@@ -250,6 +254,10 @@ def update_queen_beam(piece_space):
     return
 
 
+def check_queen_beam():
+    return
+
+
 def move_to_space(piece, piece_space, dest):
     v_diff = spaces[dest[0]][dest[1]] - spaces[piece_space[0]][piece_space[1]]
     # move and rotate player
@@ -257,10 +265,15 @@ def move_to_space(piece, piece_space, dest):
     # queen's piece should keep facing up
     if isinstance(piece, arrow):
         piece.axis = norm(v_diff) * PLAYER_SIZE
+    check_queen_beam()
     return dest
 
 
 def player_turn(p, p_space):
+    # TODO: add beam detecting func and call it after player/queen moves
+    #  could be player agnostic - checks if any positions overlap between
+    #  occupied_spaces and qb_spaces and removes the pieces at those positions
+    #  maybe set flags that map to parts of occupied_spaces to stop turn-taking?
     adj = None
     # wait for player to pick starting piece
     piece_selected = False
@@ -288,15 +301,15 @@ def player_turn(p, p_space):
             p_space = move
             space_selected = True
     print("turn over")
-    return p_space
+    return p, p_space
 
 
 t_count = 0
 while True:
     # run player moves forever for now
     scene.caption = f"Turn {t_count}"
-    update_queen_beam(occupied_spaces[2])
-    occupied_spaces[0] = player_turn(p1, occupied_spaces[0])
-    occupied_spaces[1] = player_turn(p2, occupied_spaces[1])
-    occupied_spaces[2] = player_turn(queen, occupied_spaces[2])
+    update_queen_beam(players[2][1])
+    players[0] = player_turn(players[0][0], players[0][1])
+    players[1] = player_turn(players[1][0], players[1][1])
+    players[2] = player_turn(players[2][0], players[2][1])
     t_count += 1
